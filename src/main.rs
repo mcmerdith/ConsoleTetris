@@ -1,6 +1,7 @@
-mod constraint;
+mod board;
 mod game;
 mod game_io;
+mod graphics;
 mod tetramino;
 
 use crossterm::{
@@ -10,7 +11,6 @@ use crossterm::{
 };
 use game::{GameState, Tetris};
 use game_io::{start_io_handler, Message};
-use rand::random;
 use ratatui::{
     prelude::{Backend, CrosstermBackend},
     Terminal,
@@ -61,7 +61,8 @@ fn game_loop(terminal: &mut Terminal<impl Backend>) -> Result<(), io::Error> {
             Ok(v) => match v {
                 Message::QuitGame => gamestate.running = false,
                 Message::Move(control) => gamestate.apply_movement(control),
-                Message::Debug => gamestate.tetramino = Tetramino::new(random(), 0, 0),
+                Message::Debug => gamestate.tetramino = Tetramino::default(),
+                Message::NewPiece => gamestate.new_piece(),
             },
             Err(_) => (),
         };

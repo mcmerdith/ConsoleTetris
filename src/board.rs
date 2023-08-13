@@ -12,11 +12,11 @@ pub const BOARD_HEIGHT: u16 = 20;
 #[macro_export]
 macro_rules! x_position_outside_left_bound {
     ($x: expr) => {
-        $x < 0 || $x >= BOARD_WIDTH.into()
+        $x < 0
     };
 }
 
-/// Expands to a boolean expression evaluating if `x` and `y` is outside the right bound of the board
+/// Expands to a boolean expression evaluating if `x` is outside the right bound of the board
 ///
 /// ```
 /// let x: i32 = ..;
@@ -25,19 +25,20 @@ macro_rules! x_position_outside_left_bound {
 #[macro_export]
 macro_rules! x_position_outside_right_bound {
     ($x: expr) => {
-        $x < 0 || $x >= BOARD_WIDTH.into()
+        $x >= BOARD_WIDTH.into()
     };
 }
 
-/// Expands to a boolean expression evaluating if `x` si outside the bounds of the board
+/// Expands to a boolean expression evaluating if `x` is outside the bounds of the board
 ///
 /// ```
 /// let x: i32 = ..;
-/// if x_position_outside_bounds!(x, y) ..
+/// if x_position_outside_bounds!(x) ..
+/// ```
 #[macro_export]
 macro_rules! x_position_outside_bounds {
     ($x: expr) => {
-        $x < 0 || $x >= BOARD_WIDTH.into()
+        $crate::x_position_outside_left_bound!($x) || $crate::x_position_outside_right_bound!($x)
     };
 }
 
@@ -46,6 +47,7 @@ macro_rules! x_position_outside_bounds {
 /// ```
 /// let y: i32 = ..;
 /// if y_position_outside_bounds!(y) ..
+/// ```
 #[macro_export]
 macro_rules! y_position_outside_bounds {
     ($y: expr) => {
@@ -59,10 +61,23 @@ macro_rules! y_position_outside_bounds {
 /// let x: i32 = ..;
 /// let y: i32 = ..;
 /// if position_outside_bounds!(x, y) ..
+/// ```
 #[macro_export]
 macro_rules! position_outside_bounds {
     ($x: expr, $y: expr) => {
         $crate::x_position_outside_bounds!($x) || $crate::y_position_outside_bounds!($y)
+    };
+}
+
+/// Expands to a boolean expression evaluating if `x` and `y` are outside the bounds of the board
+///
+/// ```
+/// let game_board = new_board!();
+/// ```
+#[macro_export]
+macro_rules! new_board {
+    () => {
+        Grid::new(BOARD_HEIGHT.into(), BOARD_WIDTH.into())
     };
 }
 

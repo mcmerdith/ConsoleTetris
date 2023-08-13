@@ -1,10 +1,11 @@
 use crate::{
-    constraint::{BOARD_HEIGHT, BOARD_WIDTH},
+    board::{BOARD_HEIGHT, BOARD_WIDTH},
     game::{TileGrid, TileGridMap},
+    graphics::Tile,
     position_outside_bounds,
 };
 use grid::{grid, Grid};
-use rand::{distributions::Standard, prelude::Distribution};
+use rand::{distributions::Standard, prelude::Distribution, random};
 use ratatui::{style::Color, widgets::canvas::Shape};
 
 const LINE_COLOR: Color = Color::Indexed(31);
@@ -14,8 +15,6 @@ const SQUARE_COLOR: Color = Color::Indexed(252);
 const SQUIGGLE_COLOR: Color = Color::Indexed(28);
 const T_COLOR: Color = Color::Indexed(131);
 const REVERSE_SQUIGGLE_COLOR: Color = Color::Indexed(224);
-
-pub type Tile = (i32, i32, Color);
 
 pub enum TetraminoType {
     Line,
@@ -41,10 +40,10 @@ impl Distribution<TetraminoType> for Standard {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tetramino {
     /// the grid of tiles making up the tetramino
-    tiles: TileGrid,
+    tile_grid: TileGrid,
     /// the relative x position
     x_pos: i32,
     /// the relative y position
@@ -58,80 +57,90 @@ impl TileGridMap for Tetramino {
     /// let tile = (grid_x_position, grid_y_position, tile_color);
     /// ```
     fn get_tiles(&self) -> Vec<Tile> {
-        self.tiles
+        self.tile_grid
             .get_tiles()
             .iter()
-            .map(|(x, y, color)| (self.x_pos + x, self.y_pos + y, color.to_owned()))
+            .map(|tile| Tile {
+                x: self.x_pos + tile.x,
+                y: self.y_pos + tile.y,
+                color: tile.color,
+            })
             .collect()
+    }
+}
+
+impl Default for Tetramino {
+    fn default() -> Self {
+        Tetramino::new(random())
     }
 }
 
 impl Tetramino {
     /// Create a new tetramino
-    pub fn new(piece: TetraminoType, x_pos: i32, y_pos: i32) -> Tetramino {
+    pub fn new(piece: TetraminoType) -> Tetramino {
         match piece {
             TetraminoType::Line => Tetramino {
-                tiles: grid![
+                tile_grid: grid![
                     [None, None, None, None]
                     [Some(LINE_COLOR), Some(LINE_COLOR), Some(LINE_COLOR), Some(LINE_COLOR)]
                     [None, None, None, None]
                     [None, None, None, None]
                 ],
-                x_pos,
-                y_pos,
+                x_pos: 3,
+                y_pos: 0,
             },
             TetraminoType::L => Tetramino {
-                tiles: grid![
+                tile_grid: grid![
                     [None, None, Some(L_COLOR)]
                     [Some(L_COLOR), Some(L_COLOR), Some(L_COLOR)]
                     [None, None, None]
                 ],
-                x_pos,
-                y_pos,
+                x_pos: 3,
+                y_pos: 0,
             },
             TetraminoType::ReverseL => Tetramino {
-                tiles: grid![
+                tile_grid: grid![
                     [None, None, Some(REVERSE_L_COLOR)]
                     [Some(REVERSE_L_COLOR), Some(REVERSE_L_COLOR), Some(REVERSE_L_COLOR)]
                     [None, None, None]
                 ],
-                x_pos,
-                y_pos,
+                x_pos: 3,
+                y_pos: 0,
             },
             TetraminoType::Square => Tetramino {
-                tiles: grid![
+                tile_grid: grid![
                     [Some(SQUARE_COLOR), Some(SQUARE_COLOR)]
                     [Some(SQUARE_COLOR), Some(SQUARE_COLOR)]
                 ],
-                x_pos,
-                y_pos,
+                x_pos: 4,
+                y_pos: 0,
             },
             TetraminoType::Squiggle => Tetramino {
-                tiles: grid![
+                tile_grid: grid![
                     [None, Some(SQUIGGLE_COLOR), Some(SQUIGGLE_COLOR)]
                     [Some(SQUIGGLE_COLOR), Some(SQUIGGLE_COLOR), None]
                     [None, None, None]
                 ],
-                x_pos,
-                y_pos,
+                x_pos: 3,
+                y_pos: 0,
             },
             TetraminoType::T => Tetramino {
-                tiles: grid![
+                tile_grid: grid![
                     [None, Some(T_COLOR), None]
                     [Some(T_COLOR), Some(T_COLOR), Some(T_COLOR)]
                     [None, None, None]
                 ],
-                x_pos,
-                y_pos,
+                x_pos: 3,
+                y_pos: 0,
             },
             TetraminoType::ReverseSquiggle => Tetramino {
-                tiles: grid![
+                tile_grid: grid![
                     [Some(REVERSE_SQUIGGLE_COLOR), Some(REVERSE_SQUIGGLE_COLOR), None]
                     [None, Some(REVERSE_SQUIGGLE_COLOR), Some(REVERSE_SQUIGGLE_COLOR)]
                     [None, None, None]
                 ],
-                x_pos,
-                y_pos,
+                x_pos: 3,
+                y_pos: 0,
             },
         }
     }
@@ -149,17 +158,31 @@ impl Tetramino {
     /// ```
     /// let tile = (grid_x_position, grid_y_position, tile_color);
     /// ```
-    pub fn position_invalid(&self, x_offset: i32, y_offset: i32) -> Option<Vec<Tile>> {
+    pub fn position_invalid(
+        &self,
+        x_offset: i32,
+        y_offset: i32,
+        board_tile_grid: &TileGrid,
+    ) -> Option<Vec<Tile>> {
         // check if tile is out of bounds
-        let outside: Vec<Tile> = self
+        let collision: Vec<Tile> = self
             .get_tiles()
             .iter()
-            .filter_map(|t| {
-                if position_outside_bounds!(t.0 + x_offset, t.1 + y_offset) {
-                    // If the tile is out of bounds it should be returned
-                    Some(t.to_owned())
+            .filter_map(|tile| {
+                let x = tile.x + x_offset;
+                let y = tile.y + y_offset;
+
+                let out_of_bounds = position_outside_bounds!(x, y);
+                let board_collision = board_tile_grid
+                    .get_tiles()
+                    .iter()
+                    .any(|board_tile| x == board_tile.x && y == board_tile.y);
+
+                if out_of_bounds || board_collision {
+                    // invalid tiles are returned
+                    Some(tile.to_owned())
                 } else {
-                    // In bound tiles are not returned
+                    // valid tiles are not
                     None
                 }
             })
@@ -167,10 +190,10 @@ impl Tetramino {
 
         // TODO check tile collision
 
-        if outside.is_empty() {
+        if collision.is_empty() {
             None
         } else {
-            Some(outside)
+            Some(collision)
         }
     }
 
@@ -178,11 +201,13 @@ impl Tetramino {
     ///
     /// Returns `true` if the move was successful,
     /// `false` if the position would be invalid after the move
-    pub fn move_position(&mut self, x: i32, y: i32) -> bool {
-        if self.position_invalid(x, y).is_some() {
+    pub fn move_position(&mut self, x: i32, y: i32, board_tile_grid: &TileGrid) -> bool {
+        // check if position would be invalid
+        if self.position_invalid(x, y, board_tile_grid).is_some() {
             return false;
         }
 
+        // move the piece if valid
         self.x_pos += x;
         self.y_pos += y;
 
@@ -192,82 +217,48 @@ impl Tetramino {
     /// Rotate the tetramino clockwise
     ///
     /// Does nothing if the position would be invalid after the rotation
-    pub fn rotate(&mut self) {
-        let (rows, cols) = self.tiles.size();
-        let old_blocks = self.tiles.clone();
+    pub fn rotate(&mut self, board_tile_grid: &TileGrid) {
+        // store the previous position in case rotation is impossible
+        let original_tiles = self.tile_grid.to_owned();
 
-        self.tiles = Grid::new(cols, rows);
-        old_blocks
+        // make the rotated grid
+        let (rows, cols) = self.tile_grid.size();
+        self.tile_grid = Grid::new(cols, rows);
+
+        // map the original tiles to the new rotated grid
+        original_tiles
             .iter_rows()
             .enumerate()
             .for_each(|(row, col_iter)| {
                 col_iter
                     .enumerate()
-                    .for_each(|(col, tile)| self.tiles[col][rows - row - 1] = tile.clone())
+                    .for_each(|(col, tile)| self.tile_grid[col][rows - row - 1] = *tile)
             });
 
-        // check if position is okay
-        if self.position_invalid(0, 0).is_none() {
+        // check if new position is okay
+        if self.position_invalid(0, 0, board_tile_grid).is_none() {
             return;
         };
 
-        // try to wall kick
+        // try to wall kick if position is invalid
         for resolve in vec![-1, 1, -2, 2] {
-            if self.move_position(resolve, 0) || self.move_position(0, resolve) {
+            if self.move_position(resolve, 0, board_tile_grid)
+                || self.move_position(0, resolve, board_tile_grid)
+            {
+                // if wall kick was successfull return
                 return;
             }
         }
 
-        // rotation is impossible
-        self.tiles = old_blocks;
+        // rotation is impossible, revert the tiles
+        self.tile_grid = original_tiles;
     }
 }
 
 impl Shape for Tetramino {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        // get explicit bounds of the board
-        let Some((x1, y1)) =
-            painter.get_point(0.0,0.0)
-            else { return; };
-        let Some((x2, y2)) =
-            painter.get_point(BOARD_WIDTH.into(),BOARD_HEIGHT.into())
-            else { return; };
-
-        // get starting and ending points from the bounds
-        let start_x = if x1 < x2 { x1 } else { x2 };
-        let end_x = if x1 < x2 { x2 } else { x1 };
-
-        let start_y = if y1 < y2 { y1 } else { y2 };
-        let end_y = if y1 < y2 { y2 } else { y1 };
-
-        // get size of board
-        let width = end_x - start_x + 1;
-        let height = end_y - start_y + 1;
-
-        // get size of each block
-        let block_x_size = width / BOARD_WIDTH as usize;
-        let block_y_size = height / BOARD_HEIGHT as usize;
-
-        for (raw_x, raw_y, color) in self.get_tiles() {
-            // don't draw the tile if its outside of bounds somehow
-            if position_outside_bounds!(raw_x, raw_y) {
-                continue;
-            }
-
-            // starting corner
-            let x_start_pos = start_x + (raw_x as usize) * block_x_size;
-            let y_start_pos = start_y + (raw_y as usize) * block_y_size;
-
-            // ending corner
-            let x_end_pos = x_start_pos + block_x_size;
-            let y_end_pos = y_start_pos + block_y_size;
-
-            // paint each tile
-            for x in x_start_pos..x_end_pos {
-                for y in y_start_pos..y_end_pos {
-                    painter.paint(x, y, color);
-                }
-            }
+        for tile in self.get_tiles() {
+            tile.draw(painter);
         }
     }
 }

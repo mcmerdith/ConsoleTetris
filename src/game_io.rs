@@ -24,6 +24,8 @@ pub enum Message {
     Move(Movement),
     /// Debug
     Debug,
+    /// New piece
+    NewPiece,
 }
 
 pub fn start_io_handler() -> (Receiver<Message>, JoinHandle<()>) {
@@ -39,6 +41,8 @@ pub fn start_io_handler() -> (Receiver<Message>, JoinHandle<()>) {
                             break;
                         } else if c == 'r' {
                             Message::Debug
+                        } else if c == 'n' {
+                            Message::NewPiece
                         } else {
                             continue;
                         }
