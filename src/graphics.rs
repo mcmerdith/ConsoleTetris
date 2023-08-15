@@ -2,7 +2,9 @@ use ratatui::{style::Color, widgets::canvas::Shape};
 
 use crate::{
     board::{BOARD_HEIGHT, BOARD_WIDTH},
+    game::TileGridMap,
     position_outside_bounds,
+    tetramino::Tetramino,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,9 +14,16 @@ pub struct Tile {
     pub color: Color,
 }
 
+impl Tile {
+    pub fn get_render_position(&self) -> (i32, i32) {
+        (self.x, BOARD_HEIGHT as i32 - self.y - 1)
+    }
+}
+
 impl Shape for Tile {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        if position_outside_bounds!(self.x, self.y) {
+        let (render_x, render_y) = self.get_render_position();
+        if position_outside_bounds!(render_x, render_y) {
             return;
         }
 
@@ -42,8 +51,8 @@ impl Shape for Tile {
         let block_y_size = height / BOARD_HEIGHT as usize;
 
         // starting corner
-        let x_start_pos = start_x + (self.x as usize) * block_x_size;
-        let y_start_pos = start_y + (self.y as usize) * block_y_size;
+        let x_start_pos = start_x + (render_x as usize) * block_x_size;
+        let y_start_pos = start_y + (render_y as usize) * block_y_size;
 
         // ending corner
         let x_end_pos = x_start_pos + block_x_size;
@@ -54,6 +63,14 @@ impl Shape for Tile {
             for y in y_start_pos..y_end_pos {
                 painter.paint(x, y, self.color);
             }
+        }
+    }
+}
+
+impl Shape for Tetramino {
+    fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
+        for tile in self.get_tiles() {
+            tile.draw(painter);
         }
     }
 }

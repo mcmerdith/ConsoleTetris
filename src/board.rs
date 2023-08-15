@@ -51,7 +51,7 @@ macro_rules! x_position_outside_bounds {
 #[macro_export]
 macro_rules! y_position_outside_bounds {
     ($y: expr) => {
-        $y < 0 || $y >= BOARD_HEIGHT.into()
+        $y < 0
     };
 }
 
@@ -69,7 +69,7 @@ macro_rules! position_outside_bounds {
     };
 }
 
-/// Expands to a boolean expression evaluating if `x` and `y` are outside the bounds of the board
+/// Create a new game board
 ///
 /// ```
 /// let game_board = new_board!();
@@ -85,13 +85,13 @@ macro_rules! new_board {
 ///
 /// Returns [`None`] if the screen is too small
 pub fn get_board_size(vw_width: u16, vw_height: u16) -> Option<(u16, u16, u16)> {
-    if vw_width < 12 || vw_height < 22 {
+    if vw_width < (BOARD_WIDTH * 2 + 2) || vw_height < (BOARD_HEIGHT + 2) {
         return None;
     }
 
     let canvas_height = vw_height - 2;
     let board_height = canvas_height - (canvas_height % BOARD_HEIGHT);
-    let board_width = board_height * BOARD_WIDTH / BOARD_HEIGHT;
+    let board_width = (board_height * BOARD_WIDTH / BOARD_HEIGHT) * 2;
     let margin = (vw_width - board_width) / 2;
 
     Some((

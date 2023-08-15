@@ -1,49 +1,129 @@
 use crate::{
     board::{BOARD_HEIGHT, BOARD_WIDTH},
     game::{TileGrid, TileGridMap},
+    game_io::RotationDirection,
     graphics::Tile,
     position_outside_bounds,
 };
 use grid::{grid, Grid};
 use rand::{distributions::Standard, prelude::Distribution, random};
-use ratatui::{style::Color, widgets::canvas::Shape};
+use ratatui::style::Color;
 
-const LINE_COLOR: Color = Color::Indexed(31);
-const REVERSE_L_COLOR: Color = Color::Indexed(3);
-const L_COLOR: Color = Color::Indexed(240);
-const SQUARE_COLOR: Color = Color::Indexed(252);
-const SQUIGGLE_COLOR: Color = Color::Indexed(28);
-const T_COLOR: Color = Color::Indexed(131);
-const REVERSE_SQUIGGLE_COLOR: Color = Color::Indexed(224);
+// const I_COLOR: Color = Color::Indexed(31);
+// const J_COLOR: Color = Color::Indexed(3);
+// const L_COLOR: Color = Color::Indexed(240);
+// const O_COLOR: Color = Color::Indexed(252);
+// const S_COLOR: Color = Color::Indexed(28);
+// const T_COLOR: Color = Color::Indexed(131);
+// const Z_COLOR: Color = Color::Indexed(224);
 
+const I_COLOR: Color = Color::Indexed(51);
+const J_COLOR: Color = Color::Indexed(33);
+const L_COLOR: Color = Color::Indexed(208);
+const O_COLOR: Color = Color::Indexed(226);
+const S_COLOR: Color = Color::Indexed(40);
+const T_COLOR: Color = Color::Indexed(128);
+const Z_COLOR: Color = Color::Indexed(160);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rotation {
+    North,
+    East,
+    South,
+    West,
+}
+
+impl Rotation {
+    pub fn rotated(&self, rotation_direction: RotationDirection) -> Rotation {
+        match rotation_direction {
+            RotationDirection::Clockwise => match self {
+                Self::North => Self::East,
+                Self::East => Self::South,
+                Self::South => Self::West,
+                Self::West => Self::North,
+            },
+            RotationDirection::Counterclockwise => match self {
+                Self::North => Self::West,
+                Self::East => Self::North,
+                Self::South => Self::East,
+                Self::West => Self::South,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TetraminoType {
-    Line,
-    ReverseL,
+    I,
+    J,
     L,
-    Square,
-    Squiggle,
+    O,
+    S,
     T,
-    ReverseSquiggle,
+    Z,
+}
+
+impl TetraminoType {
+    /// Returns a [`Vec`] of kick offsets for the type of tetramino
+    ///
+    /// Offsets should be tried sequentially
+    pub fn get_kick_offset_data(
+        &self,
+        origin_rotation: Rotation,
+        target_rotation: Rotation,
+    ) -> Vec<(i32, i32)> {
+        // All y-values are inverted
+        let offset_table = match self {
+            Self::J | Self::L | Self::S | Self::T | Self::Z => grid![
+                [(0, 0), ( 0, 0), ( 0,  0), (0,  0), ( 0,  0)]
+                [(0, 0), ( 1, 0), ( 1,  1), (0, -2), ( 1, -2)]
+                [(0, 0), ( 0, 0), ( 0,  0), (0,  0), ( 0,  0)]
+                [(0, 0), (-1, 0), (-1,  1), (0, -2), (-1, -2)]
+            ],
+            Self::I => grid![
+                [( 0,  0), (-1,  0), ( 2,  0), (-1,  0), ( 2,  0)]
+                [(-1,  0), ( 0,  0), ( 0,  0), ( 0, -1), ( 0,  2)]
+                [(-1, -1), ( 1, -1), (-2, -1), ( 1,  0), (-2,  0)]
+                [( 0, -1), ( 0, -1), ( 0, -1), ( 0,  1), ( 0, -2)]
+            ],
+            Self::O => grid![[(0, 0)][(0, 1)][(-1, 1)][(-1, 0)]],
+        };
+
+        offset_table
+            .iter_row(origin_rotation as usize)
+            .zip(offset_table.iter_row(target_rotation as usize))
+            .map(|((origin_x, origin_y), (target_x, target_y))| {
+                // (target_x - origin_x, target_y - origin_y)
+                (
+                    origin_x - target_x, // + true_rotation_offset_x,
+                    origin_y - target_y, // + true_rotation_offset_y,
+                )
+            })
+            .collect()
+    }
 }
 
 impl Distribution<TetraminoType> for Standard {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> TetraminoType {
         match rng.gen_range(0..7) {
-            0 => TetraminoType::Line,
-            1 => TetraminoType::ReverseL,
+            0 => TetraminoType::I,
+            1 => TetraminoType::J,
             2 => TetraminoType::L,
-            3 => TetraminoType::Square,
-            4 => TetraminoType::Squiggle,
+            3 => TetraminoType::O,
+            4 => TetraminoType::S,
             5 => TetraminoType::T,
-            _ => TetraminoType::ReverseSquiggle,
+            _ => TetraminoType::Z,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tetramino {
+    tetramino_type: TetraminoType,
     /// the grid of tiles making up the tetramino
     tile_grid: TileGrid,
+    /// the current tetramino rotation
+    rotation: Rotation,
     /// the relative x position
     x_pos: i32,
     /// the relative y position
@@ -78,70 +158,58 @@ impl Default for Tetramino {
 impl Tetramino {
     /// Create a new tetramino
     pub fn new(piece: TetraminoType) -> Tetramino {
-        match piece {
-            TetraminoType::Line => Tetramino {
-                tile_grid: grid![
-                    [None, None, None, None]
-                    [Some(LINE_COLOR), Some(LINE_COLOR), Some(LINE_COLOR), Some(LINE_COLOR)]
-                    [None, None, None, None]
-                    [None, None, None, None]
+        Tetramino {
+            tetramino_type: piece,
+            tile_grid: match piece {
+                TetraminoType::I => grid![
+                    [None, None, None, None, None]
+                    [None, None, None, None, None]
+                    [None, Some(I_COLOR), Some(I_COLOR), Some(I_COLOR), Some(I_COLOR)]
+                    [None, None, None, None, None]
+                    [None, None, None, None, None]
                 ],
-                x_pos: 3,
-                y_pos: 0,
-            },
-            TetraminoType::L => Tetramino {
-                tile_grid: grid![
+                TetraminoType::L => grid![
                     [None, None, Some(L_COLOR)]
                     [Some(L_COLOR), Some(L_COLOR), Some(L_COLOR)]
                     [None, None, None]
                 ],
-                x_pos: 3,
-                y_pos: 0,
-            },
-            TetraminoType::ReverseL => Tetramino {
-                tile_grid: grid![
-                    [None, None, Some(REVERSE_L_COLOR)]
-                    [Some(REVERSE_L_COLOR), Some(REVERSE_L_COLOR), Some(REVERSE_L_COLOR)]
+                TetraminoType::J => grid![
+                    [Some(J_COLOR), None, None]
+                    [Some(J_COLOR), Some(J_COLOR), Some(J_COLOR)]
                     [None, None, None]
                 ],
-                x_pos: 3,
-                y_pos: 0,
-            },
-            TetraminoType::Square => Tetramino {
-                tile_grid: grid![
-                    [Some(SQUARE_COLOR), Some(SQUARE_COLOR)]
-                    [Some(SQUARE_COLOR), Some(SQUARE_COLOR)]
-                ],
-                x_pos: 4,
-                y_pos: 0,
-            },
-            TetraminoType::Squiggle => Tetramino {
-                tile_grid: grid![
-                    [None, Some(SQUIGGLE_COLOR), Some(SQUIGGLE_COLOR)]
-                    [Some(SQUIGGLE_COLOR), Some(SQUIGGLE_COLOR), None]
+                TetraminoType::O => grid![
+                    [None, Some(O_COLOR), Some(O_COLOR)]
+                    [None, Some(O_COLOR), Some(O_COLOR)]
                     [None, None, None]
                 ],
-                x_pos: 3,
-                y_pos: 0,
-            },
-            TetraminoType::T => Tetramino {
-                tile_grid: grid![
+                TetraminoType::S => grid![
+                    [None, Some(S_COLOR), Some(S_COLOR)]
+                    [Some(S_COLOR), Some(S_COLOR), None]
+                    [None, None, None]
+                ],
+                TetraminoType::T => grid![
                     [None, Some(T_COLOR), None]
                     [Some(T_COLOR), Some(T_COLOR), Some(T_COLOR)]
                     [None, None, None]
                 ],
-                x_pos: 3,
-                y_pos: 0,
-            },
-            TetraminoType::ReverseSquiggle => Tetramino {
-                tile_grid: grid![
-                    [Some(REVERSE_SQUIGGLE_COLOR), Some(REVERSE_SQUIGGLE_COLOR), None]
-                    [None, Some(REVERSE_SQUIGGLE_COLOR), Some(REVERSE_SQUIGGLE_COLOR)]
+                TetraminoType::Z => grid![
+                    [Some(Z_COLOR), Some(Z_COLOR), None]
+                    [None, Some(Z_COLOR), Some(Z_COLOR)]
                     [None, None, None]
                 ],
-                x_pos: 3,
-                y_pos: 0,
             },
+            rotation: Rotation::North,
+            x_pos: match piece {
+                TetraminoType::I => 3,
+                TetraminoType::J => 3,
+                TetraminoType::L => 3,
+                TetraminoType::O => 4,
+                TetraminoType::S => 3,
+                TetraminoType::T => 3,
+                TetraminoType::Z => 3,
+            },
+            y_pos: (BOARD_HEIGHT - 1).into(),
         }
     }
 
@@ -188,8 +256,6 @@ impl Tetramino {
             })
             .collect();
 
-        // TODO check tile collision
-
         if collision.is_empty() {
             None
         } else {
@@ -217,48 +283,45 @@ impl Tetramino {
     /// Rotate the tetramino clockwise
     ///
     /// Does nothing if the position would be invalid after the rotation
-    pub fn rotate(&mut self, board_tile_grid: &TileGrid) {
+    pub fn rotate(&mut self, rotation_direction: RotationDirection, board_tile_grid: &TileGrid) {
         // store the previous position in case rotation is impossible
         let original_tiles = self.tile_grid.to_owned();
+        let original_rotation = self.rotation;
 
         // make the rotated grid
         let (rows, cols) = self.tile_grid.size();
         self.tile_grid = Grid::new(cols, rows);
+        self.rotation = self.rotation.rotated(rotation_direction);
 
         // map the original tiles to the new rotated grid
         original_tiles
             .iter_rows()
             .enumerate()
             .for_each(|(row, col_iter)| {
-                col_iter
-                    .enumerate()
-                    .for_each(|(col, tile)| self.tile_grid[col][rows - row - 1] = *tile)
+                col_iter.enumerate().for_each(|(col, tile)| {
+                    self.tile_grid[match rotation_direction {
+                        RotationDirection::Clockwise => col,
+                        RotationDirection::Counterclockwise => cols - col - 1,
+                    }][match rotation_direction {
+                        RotationDirection::Clockwise => rows - row - 1,
+                        RotationDirection::Counterclockwise => row,
+                    }] = *tile
+                })
             });
 
-        // check if new position is okay
-        if self.position_invalid(0, 0, board_tile_grid).is_none() {
-            return;
-        };
-
-        // try to wall kick if position is invalid
-        for resolve in vec![-1, 1, -2, 2] {
-            if self.move_position(resolve, 0, board_tile_grid)
-                || self.move_position(0, resolve, board_tile_grid)
-            {
-                // if wall kick was successfull return
+        // Super-Rotation-System uses an offset table to try and place tetraminoa
+        for (x, y) in self
+            .tetramino_type
+            .get_kick_offset_data(original_rotation, self.rotation)
+        {
+            if self.move_position(x, y, board_tile_grid) {
+                // position is okay
                 return;
             }
         }
 
         // rotation is impossible, revert the tiles
         self.tile_grid = original_tiles;
-    }
-}
-
-impl Shape for Tetramino {
-    fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        for tile in self.get_tiles() {
-            tile.draw(painter);
-        }
+        self.rotation = original_rotation;
     }
 }

@@ -32,7 +32,7 @@ impl TileGridMap for TileGrid {
                     return match tile {
                         Some(color) => Some(Tile {
                             x: col as i32,
-                            y: row as i32,
+                            y: -(row as i32),
                             color: *color,
                         }),
                         None => None,
@@ -74,8 +74,8 @@ impl GameState {
 
     pub fn apply_movement(&mut self, movement: Movement) {
         match movement {
-            Movement::Rotate => {
-                self.tetramino.rotate(&self.board_tile_grid);
+            Movement::Rotate(rotation) => {
+                self.tetramino.rotate(rotation, &self.board_tile_grid);
             }
             Movement::Left => {
                 self.tetramino.move_position(-1, 0, &self.board_tile_grid);
@@ -84,7 +84,7 @@ impl GameState {
                 self.tetramino.move_position(1, 0, &self.board_tile_grid);
             }
             Movement::Down => {
-                self.tetramino.move_position(0, 1, &self.board_tile_grid);
+                self.tetramino.move_position(0, -1, &self.board_tile_grid);
             }
             Movement::Drop => return,
         }
@@ -128,7 +128,8 @@ impl StatefulWidget for Tetris {
             .block(Block::default().title("TETRIS").borders(Borders::ALL))
             .x_bounds([0.0, BOARD_WIDTH.into()])
             .y_bounds([0.0, BOARD_HEIGHT.into()])
-            .marker(ratatui::symbols::Marker::Braille)
+            // .y_bounds([BOARD_HEIGHT.into(), 0.0])
+            .marker(ratatui::symbols::Marker::Block)
             .paint(|ctx| {
                 ctx.draw(&state.tetramino);
                 state
