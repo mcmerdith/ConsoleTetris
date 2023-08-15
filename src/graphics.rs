@@ -1,29 +1,29 @@
 use ratatui::{style::Color, widgets::canvas::Shape};
 
 use crate::{
-    board::{BOARD_HEIGHT, BOARD_WIDTH},
-    game::TileGridMap,
-    position_outside_bounds,
-    tetramino::Tetramino,
+    board::{MATRIX_HEIGHT, MATRIX_WIDTH},
+    game::MinoGridMap,
+    position_outside_render_bounds,
+    tetramino::Tetrimino,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Tile {
+pub struct Mino {
     pub x: i32,
     pub y: i32,
     pub color: Color,
 }
 
-impl Tile {
+impl Mino {
     pub fn get_render_position(&self) -> (i32, i32) {
-        (self.x, BOARD_HEIGHT as i32 - self.y - 1)
+        (self.x, MATRIX_HEIGHT as i32 - self.y - 1)
     }
 }
 
-impl Shape for Tile {
+impl Shape for Mino {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
         let (render_x, render_y) = self.get_render_position();
-        if position_outside_bounds!(render_x, render_y) {
+        if position_outside_render_bounds!(render_x, render_y) {
             return;
         }
 
@@ -32,7 +32,7 @@ impl Shape for Tile {
             painter.get_point(0.0,0.0)
             else { return; };
         let Some((x2, y2)) =
-            painter.get_point(BOARD_WIDTH.into(),BOARD_HEIGHT.into())
+            painter.get_point(MATRIX_WIDTH.into(),MATRIX_HEIGHT.into())
             else { return; };
 
         // get starting and ending points from the bounds
@@ -47,8 +47,8 @@ impl Shape for Tile {
         let height = end_y - start_y + 1;
 
         // get size of each block
-        let block_x_size = width / BOARD_WIDTH as usize;
-        let block_y_size = height / BOARD_HEIGHT as usize;
+        let block_x_size = width / MATRIX_WIDTH as usize;
+        let block_y_size = height / MATRIX_HEIGHT as usize;
 
         // starting corner
         let x_start_pos = start_x + (render_x as usize) * block_x_size;
@@ -67,9 +67,9 @@ impl Shape for Tile {
     }
 }
 
-impl Shape for Tetramino {
+impl Shape for Tetrimino {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        for tile in self.get_tiles() {
+        for tile in self.get_minos() {
             tile.draw(painter);
         }
     }

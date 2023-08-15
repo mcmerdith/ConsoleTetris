@@ -24,12 +24,12 @@ pub enum RotationDirection {
 pub enum Message {
     /// Close the game
     QuitGame,
-    /// Move the piece
+    /// Move the tetrimino
     Move(Movement),
     /// Debug
     Debug,
-    /// New piece
-    NewPiece,
+    /// New tetrimino
+    NewTetrimino,
 }
 
 pub fn start_io_handler() -> (Receiver<Message>, JoinHandle<()>) {
@@ -45,7 +45,7 @@ pub fn start_io_handler() -> (Receiver<Message>, JoinHandle<()>) {
                             break;
                         }
                         'r' => Message::Debug,
-                        'n' => Message::NewPiece,
+                        'n' => Message::NewTetrimino,
                         'z' => Message::Move(Movement::Rotate(RotationDirection::Counterclockwise)),
                         _ => continue,
                     },

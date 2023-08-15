@@ -1,9 +1,9 @@
 use crate::{
-    board::{get_board_size, BOARD_HEIGHT, BOARD_WIDTH},
+    board::{get_matrix_size, MATRIX_HEIGHT, MATRIX_WIDTH},
     game_io::Movement,
-    graphics::Tile,
-    new_board,
-    tetramino::Tetramino,
+    graphics::Mino,
+    new_matrix,
+    tetramino::Tetrimino,
 };
 use grid::Grid;
 use ratatui::{
@@ -12,25 +12,25 @@ use ratatui::{
     widgets::{canvas::Canvas, Block, Borders, Paragraph, StatefulWidget, Widget},
 };
 
-pub type TileGrid = Grid<Option<Color>>;
+pub type MinoGrid = Grid<Option<Color>>;
 
-pub trait TileGridMap {
-    /// Returns a [`Vec`] of all non-empty tiles
+pub trait MinoGridMap {
+    /// Returns a [`Vec`] of all non-empty minos
     ///
     /// ```
-    /// let tile = (grid_x_position, grid_y_position, tile_color);
+    /// let mino = (grid_x_position, grid_y_position, tile_color);
     /// ```
-    fn get_tiles(&self) -> Vec<Tile>;
+    fn get_minos(&self) -> Vec<Mino>;
 }
 
-impl TileGridMap for TileGrid {
-    fn get_tiles(&self) -> Vec<Tile> {
+impl MinoGridMap for MinoGrid {
+    fn get_minos(&self) -> Vec<Mino> {
         self.iter_rows()
             .enumerate()
             .flat_map(|(row, row_iter)| {
                 row_iter.enumerate().filter_map(move |(col, tile)| {
                     return match tile {
-                        Some(color) => Some(Tile {
+                        Some(color) => Some(Mino {
                             x: col as i32,
                             y: -(row as i32),
                             color: *color,
@@ -46,45 +46,46 @@ impl TileGridMap for TileGrid {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameState {
     pub running: bool,
-    pub tetramino: Tetramino,
-    board_tile_grid: TileGrid,
+    pub tetrimino: Tetrimino,
+    matrix: MinoGrid,
 }
 
 impl Default for GameState {
     fn default() -> Self {
-        let board_tiles = new_board!();
+        let matrix = new_matrix!();
         GameState {
             running: true,
-            tetramino: Tetramino::default(),
-            board_tile_grid: board_tiles,
+            tetrimino: Tetrimino::default(),
+            matrix,
         }
     }
 }
 
 impl GameState {
-    pub fn new_piece(&mut self) {
-        // solidify the current piece
-        self.tetramino.get_tiles().iter().for_each(|tile| {
-            self.board_tile_grid[tile.y as usize][tile.x as usize] = Some(tile.color)
-        });
+    pub fn new_tetrimino(&mut self) {
+        // lock the current tetrimino
+        self.tetrimino
+            .get_minos()
+            .iter()
+            .for_each(|tile| self.matrix[tile.y as usize][tile.x as usize] = Some(tile.color));
 
-        // new tetramino
-        self.tetramino = Tetramino::default();
+        // new tetrimino
+        self.tetrimino = Tetrimino::default();
     }
 
     pub fn apply_movement(&mut self, movement: Movement) {
         match movement {
             Movement::Rotate(rotation) => {
-                self.tetramino.rotate(rotation, &self.board_tile_grid);
+                self.tetrimino.rotate(rotation, &self.matrix);
             }
             Movement::Left => {
-                self.tetramino.move_position(-1, 0, &self.board_tile_grid);
+                self.tetrimino.move_position(-1, 0, &self.matrix);
             }
             Movement::Right => {
-                self.tetramino.move_position(1, 0, &self.board_tile_grid);
+                self.tetrimino.move_position(1, 0, &self.matrix);
             }
             Movement::Down => {
-                self.tetramino.move_position(0, -1, &self.board_tile_grid);
+                self.tetrimino.move_position(0, -1, &self.matrix);
             }
             Movement::Drop => return,
         }
@@ -101,7 +102,7 @@ impl StatefulWidget for Tetris {
         buf: &mut ratatui::prelude::Buffer,
         state: &mut Self::State,
     ) {
-        let Some((board_width, board_height, margin)) = get_board_size(area.width, area.height)
+        let Some((board_width, board_height, margin)) = get_matrix_size(area.width, area.height)
         else {
             Paragraph::new("This terminal is too small to play Tetris!").render(area, buf);
             return;
@@ -126,17 +127,16 @@ impl StatefulWidget for Tetris {
 
         Canvas::default()
             .block(Block::default().title("TETRIS").borders(Borders::ALL))
-            .x_bounds([0.0, BOARD_WIDTH.into()])
-            .y_bounds([0.0, BOARD_HEIGHT.into()])
-            // .y_bounds([BOARD_HEIGHT.into(), 0.0])
+            .x_bounds([0.0, MATRIX_WIDTH.into()])
+            .y_bounds([0.0, MATRIX_HEIGHT.into()])
             .marker(ratatui::symbols::Marker::Block)
             .paint(|ctx| {
-                ctx.draw(&state.tetramino);
+                ctx.draw(&state.tetrimino);
                 state
-                    .board_tile_grid
-                    .get_tiles()
+                    .matrix
+                    .get_minos()
                     .iter()
-                    .for_each(|tile| ctx.draw(tile));
+                    .for_each(|mino| ctx.draw(mino));
             })
             .render(layout[1], buf);
     }

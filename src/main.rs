@@ -16,7 +16,7 @@ use ratatui::{
     Terminal,
 };
 use std::{io, panic};
-use tetramino::Tetramino;
+use tetramino::Tetrimino;
 
 fn main() -> Result<(), io::Error> {
     // emergency handlers
@@ -61,8 +61,8 @@ fn game_loop(terminal: &mut Terminal<impl Backend>) -> Result<(), io::Error> {
             Ok(v) => match v {
                 Message::QuitGame => gamestate.running = false,
                 Message::Move(control) => gamestate.apply_movement(control),
-                Message::Debug => gamestate.tetramino = Tetramino::default(),
-                Message::NewPiece => gamestate.new_piece(),
+                Message::Debug => gamestate.tetrimino = Tetrimino::default(),
+                Message::NewTetrimino => gamestate.new_tetrimino(),
             },
             Err(_) => (),
         };
