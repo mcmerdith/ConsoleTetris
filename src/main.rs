@@ -62,7 +62,7 @@ fn game_loop(terminal: &mut Terminal<impl Backend>) -> Result<(), io::Error> {
                 Message::QuitGame => gamestate.running = false,
                 Message::Move(control) => gamestate.apply_movement(control),
                 Message::Debug => gamestate.tetrimino = Tetrimino::default(),
-                Message::NewTetrimino => gamestate.new_tetrimino(),
+                Message::NewTetrimino => gamestate.next_tetrimino(),
             },
             Err(_) => (),
         };

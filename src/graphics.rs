@@ -4,7 +4,7 @@ use crate::{
     board::{MATRIX_HEIGHT, MATRIX_WIDTH},
     game::MinoGridMap,
     position_outside_render_bounds,
-    tetramino::Tetrimino,
+    tetramino::{Tetrimino, TetriminoPreview},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,8 +22,7 @@ impl Mino {
 
 impl Shape for Mino {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        let (render_x, render_y) = self.get_render_position();
-        if position_outside_render_bounds!(render_x, render_y) {
+        if position_outside_render_bounds!(self.x, self.y) {
             return;
         }
 
@@ -51,14 +50,14 @@ impl Shape for Mino {
         let block_y_size = height / MATRIX_HEIGHT as usize;
 
         // starting corner
-        let x_start_pos = start_x + (render_x as usize) * block_x_size;
-        let y_start_pos = start_y + (render_y as usize) * block_y_size;
+        let x_start_pos = start_x + (self.x as usize) * block_x_size;
+        let y_start_pos = start_y + (self.y as usize) * block_y_size;
 
         // ending corner
         let x_end_pos = x_start_pos + block_x_size;
         let y_end_pos = y_start_pos + block_y_size;
 
-        // paint tile
+        // paint mino
         for x in x_start_pos..x_end_pos {
             for y in y_start_pos..y_end_pos {
                 painter.paint(x, y, self.color);
@@ -69,8 +68,25 @@ impl Shape for Mino {
 
 impl Shape for Tetrimino {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        for tile in self.get_minos() {
-            tile.draw(painter);
+        for mino in self.get_minos().iter().map(|mino| {
+            let (x, y) = mino.get_render_position();
+            Mino {
+                x,
+                y,
+                color: mino.color,
+            }
+        }) {
+            mino.draw(painter);
         }
+    }
+}
+
+impl Shape for TetriminoPreview {
+    fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
+        for mino in self.get_minos() {
+            mino.draw(painter);
+            //print!(" {},{}", mino.x, -mino.y);
+        }
+        //print!(";");
     }
 }

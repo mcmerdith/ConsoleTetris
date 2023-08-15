@@ -46,17 +46,17 @@ impl Facing {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TetriminoType {
-    I,
-    J,
-    L,
     O,
-    S,
+    I,
     T,
+    L,
+    J,
+    S,
     Z,
 }
 
 impl TetriminoType {
-    /// Returns a [`Vec`] of offsets for the type of tetrimino
+    /// Returns a [`Vec`] of offsets for the type of Tetrimino
     ///
     /// Offsets should be tried sequentially
     pub fn get_offset_data(
@@ -93,21 +93,44 @@ impl TetriminoType {
 impl Distribution<TetriminoType> for Standard {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> TetriminoType {
         match rng.gen_range(0..7) {
-            0 => TetriminoType::I,
-            1 => TetriminoType::J,
-            2 => TetriminoType::L,
-            3 => TetriminoType::O,
-            4 => TetriminoType::S,
-            5 => TetriminoType::T,
+            0 => TetriminoType::O,
+            1 => TetriminoType::I,
+            2 => TetriminoType::T,
+            3 => TetriminoType::L,
+            4 => TetriminoType::J,
+            5 => TetriminoType::S,
             _ => TetriminoType::Z,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TetriminoPreview {
+    /// the grid of minos making up the Tetrimino
+    minos: MinoGrid,
+    /// the index of the preview
+    index: usize,
+}
+
+impl MinoGridMap for TetriminoPreview {
+    fn get_minos(&self) -> Vec<Mino> {
+        self.minos
+            .get_minos()
+            .iter()
+            .map(|mino| Mino {
+                x: mino.x,
+                y: mino.y - 3 * self.index as i32,
+                color: mino.color,
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tetrimino {
+    // the type of the Tetrimino
     tetrimino_type: TetriminoType,
-    /// the grid of minos making up the tetrimino
+    /// the grid of minos making up the Tetrimino
     minos: MinoGrid,
     /// the current rotation
     rotation: Facing,
@@ -138,18 +161,28 @@ impl Default for Tetrimino {
 }
 
 impl Tetrimino {
-    /// Create a new tetrimino
+    /// Create a new Tetrimino
     pub fn new(tetrimino_type: TetriminoType) -> Tetrimino {
         let (x_pos, y_pos) = get_spawn_point(tetrimino_type);
         Tetrimino {
             tetrimino_type,
             minos: match tetrimino_type {
+                TetriminoType::O => grid![
+                    [None, Some(O_COLOR), Some(O_COLOR)]
+                    [None, Some(O_COLOR), Some(O_COLOR)]
+                    [None, None, None]
+                ],
                 TetriminoType::I => grid![
                     [None, None, None, None, None]
                     [None, None, None, None, None]
                     [None, Some(I_COLOR), Some(I_COLOR), Some(I_COLOR), Some(I_COLOR)]
                     [None, None, None, None, None]
                     [None, None, None, None, None]
+                ],
+                TetriminoType::T => grid![
+                    [None, Some(T_COLOR), None]
+                    [Some(T_COLOR), Some(T_COLOR), Some(T_COLOR)]
+                    [None, None, None]
                 ],
                 TetriminoType::L => grid![
                     [None, None, Some(L_COLOR)]
@@ -161,19 +194,9 @@ impl Tetrimino {
                     [Some(J_COLOR), Some(J_COLOR), Some(J_COLOR)]
                     [None, None, None]
                 ],
-                TetriminoType::O => grid![
-                    [None, Some(O_COLOR), Some(O_COLOR)]
-                    [None, Some(O_COLOR), Some(O_COLOR)]
-                    [None, None, None]
-                ],
                 TetriminoType::S => grid![
                     [None, Some(S_COLOR), Some(S_COLOR)]
                     [Some(S_COLOR), Some(S_COLOR), None]
-                    [None, None, None]
-                ],
-                TetriminoType::T => grid![
-                    [None, Some(T_COLOR), None]
-                    [Some(T_COLOR), Some(T_COLOR), Some(T_COLOR)]
                     [None, None, None]
                 ],
                 TetriminoType::Z => grid![
@@ -185,6 +208,26 @@ impl Tetrimino {
             rotation: Facing::North,
             x_pos,
             y_pos,
+        }
+    }
+
+    /// Return a [`Vec`] of all Tetriminos
+    pub fn all() -> Vec<Tetrimino> {
+        vec![
+            Tetrimino::new(TetriminoType::O),
+            Tetrimino::new(TetriminoType::I),
+            Tetrimino::new(TetriminoType::T),
+            Tetrimino::new(TetriminoType::L),
+            Tetrimino::new(TetriminoType::J),
+            Tetrimino::new(TetriminoType::S),
+            Tetrimino::new(TetriminoType::Z),
+        ]
+    }
+
+    pub fn preview(&self, index: usize) -> TetriminoPreview {
+        TetriminoPreview {
+            minos: self.minos.clone(),
+            index,
         }
     }
 
@@ -237,7 +280,7 @@ impl Tetrimino {
         }
     }
 
-    /// Move the tetrimino by `x` and `y`
+    /// Move the Tetrimino by `x` and `y`
     ///
     /// Returns `true` if the move was successful,
     /// `false` if the position would be invalid after the move
@@ -254,7 +297,7 @@ impl Tetrimino {
         true
     }
 
-    /// Rotate the tetrimino
+    /// Rotate the Tetrimino
     ///
     /// Does nothing if the position would be invalid after the rotation
     pub fn rotate(&mut self, rotation_direction: RotationDirection, matrix: &MinoGrid) {
@@ -283,7 +326,7 @@ impl Tetrimino {
                 })
             });
 
-        // Super-Rotation-System uses an offset table to try and place tetrimino
+        // Super-Rotation-System uses an offset table to try and place Tetrimino
         for (x, y) in self
             .tetrimino_type
             .get_offset_data(original_rotation, self.rotation)

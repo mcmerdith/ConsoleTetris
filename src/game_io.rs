@@ -24,11 +24,11 @@ pub enum RotationDirection {
 pub enum Message {
     /// Close the game
     QuitGame,
-    /// Move the tetrimino
+    /// Move the Tetrimino
     Move(Movement),
     /// Debug
     Debug,
-    /// New tetrimino
+    /// New Tetrimino
     NewTetrimino,
 }
 
