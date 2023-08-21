@@ -1,50 +1,17 @@
 use std::collections::VecDeque;
 
 use crate::{
-    board::{get_matrix_size, MATRIX_HEIGHT, MATRIX_WIDTH},
     game_io::Movement,
-    graphics::Mino,
-    new_matrix,
-    tetramino::Tetrimino,
+    matrix::{
+        get_matrix_size, Matrix, MinoGrid, MATRIX_HEIGHT, MATRIX_WIDTH, PREVIEW_MATRIX_WIDTH,
+    },
+    tetramino::{Facing, Tetrimino},
 };
-use grid::Grid;
 use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng};
 use ratatui::{
     prelude::{Constraint, Direction, Layout},
-    style::Color,
     widgets::{canvas::Canvas, Block, Borders, Paragraph, StatefulWidget, Widget},
 };
-
-pub type MinoGrid = Grid<Option<Color>>;
-
-pub trait MinoGridMap {
-    /// Returns a [`Vec`] of all non-empty minos
-    ///
-    /// ```
-    /// let mino = (grid_x_position, grid_y_position, tile_color);
-    /// ```
-    fn get_minos(&self) -> Vec<Mino>;
-}
-
-impl MinoGridMap for MinoGrid {
-    fn get_minos(&self) -> Vec<Mino> {
-        self.iter_rows()
-            .enumerate()
-            .flat_map(|(row, row_iter)| {
-                row_iter.enumerate().filter_map(move |(col, tile)| {
-                    return match tile {
-                        Some(color) => Some(Mino {
-                            x: col as i32,
-                            y: -(row as i32),
-                            color: *color,
-                        }),
-                        None => None,
-                    };
-                })
-            })
-            .collect()
-    }
-}
 
 /// A [`Bag`] is a self-filling [`Vec<Tetrimino>`]s
 ///
@@ -80,7 +47,7 @@ impl Default for NextQueue {
 }
 
 impl NextQueue {
-    fn get_queue(&self) -> Vec<Tetrimino> {
+    pub fn get_queue(&self) -> Vec<Tetrimino> {
         Vec::from(self.queue.to_owned())
     }
 
@@ -92,49 +59,33 @@ impl NextQueue {
         }
 
         // bag is fed back to front but that order doesn't matter
-        self.bag.pop().expect("Bag was empty!") //.unwrap_or_default()
+        self.bag.pop().expect("Bag was empty!")
     }
 
-    fn next(&mut self) -> Tetrimino {
+    pub fn next(&mut self) -> Tetrimino {
         // move a bag tetrimino into the queue
         let next = self.next_bag();
         self.queue.push_back(next);
         // provide an element of the queue
-        self.queue.pop_front().expect("Queue was empty!") //.unwrap_or_default()
+        self.queue.pop_front().expect("Queue was empty!")
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GameState {
-    pub running: bool,
+pub struct Game {
     pub tetrimino: Tetrimino,
-    pub next_queue: NextQueue,
-    matrix: MinoGrid,
+    pub matrix: Matrix,
 }
 
-impl Default for GameState {
-    fn default() -> Self {
-        let mut next_queue = NextQueue::default();
-
-        Self {
-            running: true,
-            tetrimino: next_queue.next(),
-            next_queue,
-            matrix: new_matrix!(),
-        }
-    }
-}
-
-impl GameState {
-    pub fn next_tetrimino(&mut self) {
+impl Game {
+    pub fn next_tetrimino(&mut self, tetrimino: Tetrimino) {
         // lock the current Tetrimino
-        self.tetrimino
-            .get_minos()
-            .iter()
-            .for_each(|mino| self.matrix[mino.y as usize][mino.x as usize] = Some(mino.color));
+        for mino in self.tetrimino.get_minos() {
+            self.matrix.set_mino(mino.to_owned());
+        }
 
         // new Tetrimino
-        self.tetrimino = self.next_queue.next();
+        self.tetrimino = tetrimino;
     }
 
     pub fn apply_movement(&mut self, movement: Movement) {
@@ -156,6 +107,29 @@ impl GameState {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameState {
+    pub running: bool,
+    pub next_queue: NextQueue,
+    pub game: Game,
+}
+
+impl Default for GameState {
+    fn default() -> Self {
+        let mut next_queue = NextQueue::default();
+        let tetrimino = next_queue.next();
+
+        Self {
+            running: true,
+            next_queue,
+            game: Game {
+                tetrimino,
+                matrix: Matrix::new(MATRIX_HEIGHT.into(), MATRIX_WIDTH.into(), Facing::North),
+            },
+        }
+    }
+}
+
 pub struct Tetris;
 
 impl StatefulWidget for Tetris {
@@ -166,7 +140,7 @@ impl StatefulWidget for Tetris {
         buf: &mut ratatui::prelude::Buffer,
         state: &mut Self::State,
     ) {
-        let Some((board_width, board_height, margin)) = get_matrix_size(area.width, area.height)
+        let Some((board_width, board_height, preview_width, margin)) = get_matrix_size(area.width, area.height)
         else {
             Paragraph::new("This terminal is too small to play Tetris!").render(area, buf);
             return;
@@ -185,6 +159,7 @@ impl StatefulWidget for Tetris {
             .constraints([
                 Constraint::Length(margin),
                 Constraint::Length(board_width),
+                Constraint::Length(preview_width),
                 Constraint::Length(margin),
             ])
             .split(vertical_layout[0]);
@@ -194,30 +169,15 @@ impl StatefulWidget for Tetris {
             .x_bounds([0.0, MATRIX_WIDTH.into()])
             .y_bounds([0.0, MATRIX_HEIGHT.into()])
             .marker(ratatui::symbols::Marker::Block)
-            .paint(|ctx| {
-                ctx.draw(&state.tetrimino);
-                state
-                    .matrix
-                    .get_minos()
-                    .iter()
-                    .for_each(|mino| ctx.draw(mino));
-            })
+            .paint(|ctx| ctx.draw(&state.game))
             .render(layout[1], buf);
 
         Canvas::default()
             .block(Block::default().title("TETRIS").borders(Borders::ALL))
-            .x_bounds([0.0, 4.0])
+            .x_bounds([0.0, PREVIEW_MATRIX_WIDTH.into()])
             .y_bounds([0.0, MATRIX_HEIGHT.into()])
             .marker(ratatui::symbols::Marker::Block)
-            .paint(|ctx| {
-                if let Some(tetraminos) = state.next_queue.get_queue().chunks(6).next() {
-                    for (index, tetramino) in tetraminos.iter().enumerate() {
-                        ctx.draw(&tetramino.preview(index));
-                    }
-                } else {
-                    println!("OH NO!");
-                };
-            })
+            .paint(|ctx| ctx.draw(&state.next_queue))
             .render(layout[2], buf);
     }
 }

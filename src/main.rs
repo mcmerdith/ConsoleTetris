@@ -1,7 +1,7 @@
-mod board;
 mod game;
 mod game_io;
 mod graphics;
+mod matrix;
 mod tetramino;
 
 use crossterm::{
@@ -16,7 +16,6 @@ use ratatui::{
     Terminal,
 };
 use std::{io, panic};
-use tetramino::Tetrimino;
 
 fn main() -> Result<(), io::Error> {
     // emergency handlers
@@ -60,9 +59,8 @@ fn game_loop(terminal: &mut Terminal<impl Backend>) -> Result<(), io::Error> {
         match io_rx.try_recv() {
             Ok(v) => match v {
                 Message::QuitGame => gamestate.running = false,
-                Message::Move(control) => gamestate.apply_movement(control),
-                Message::Debug => gamestate.tetrimino = Tetrimino::default(),
-                Message::NewTetrimino => gamestate.next_tetrimino(),
+                Message::Move(control) => gamestate.game.apply_movement(control),
+                Message::NewTetrimino => gamestate.game.next_tetrimino(gamestate.next_queue.next()),
             },
             Err(_) => (),
         };

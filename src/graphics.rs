@@ -1,28 +1,24 @@
 use ratatui::{style::Color, widgets::canvas::Shape};
 
 use crate::{
-    board::{MATRIX_HEIGHT, MATRIX_WIDTH},
-    game::MinoGridMap,
+    game::{Game, NextQueue},
+    matrix::{MinoGrid, MATRIX_HEIGHT, MATRIX_WIDTH, PREVIEW_MATRIX_WIDTH},
     position_outside_render_bounds,
-    tetramino::{Tetrimino, TetriminoPreview},
+    tetramino::{Mino, Tetrimino, TetriminoPreview},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Mino {
-    pub x: i32,
-    pub y: i32,
-    pub color: Color,
+pub struct RenderMino {
+    col: i32,
+    row: i32,
+    cols: usize,
+    rows: usize,
+    color: Color,
 }
 
-impl Mino {
-    pub fn get_render_position(&self) -> (i32, i32) {
-        (self.x, MATRIX_HEIGHT as i32 - self.y - 1)
-    }
-}
-
-impl Shape for Mino {
+impl Shape for RenderMino {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        if position_outside_render_bounds!(self.x, self.y) {
+        if position_outside_render_bounds!(self.col, self.row) {
             return;
         }
 
@@ -31,7 +27,7 @@ impl Shape for Mino {
             painter.get_point(0.0,0.0)
             else { return; };
         let Some((x2, y2)) =
-            painter.get_point(MATRIX_WIDTH.into(),MATRIX_HEIGHT.into())
+            painter.get_point(self.cols as f64,self.rows as f64)
             else { return; };
 
         // get starting and ending points from the bounds
@@ -46,12 +42,12 @@ impl Shape for Mino {
         let height = end_y - start_y + 1;
 
         // get size of each block
-        let block_x_size = width / MATRIX_WIDTH as usize;
-        let block_y_size = height / MATRIX_HEIGHT as usize;
+        let block_x_size = width / self.cols;
+        let block_y_size = height / self.rows;
 
         // starting corner
-        let x_start_pos = start_x + (self.x as usize) * block_x_size;
-        let y_start_pos = start_y + (self.y as usize) * block_y_size;
+        let x_start_pos = start_x + (self.col as usize) * block_x_size;
+        let y_start_pos = start_y + (self.row as usize) * block_y_size;
 
         // ending corner
         let x_end_pos = x_start_pos + block_x_size;
@@ -66,27 +62,83 @@ impl Shape for Mino {
     }
 }
 
-impl Shape for Tetrimino {
-    fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        for mino in self.get_minos().iter().map(|mino| {
-            let (x, y) = mino.get_render_position();
-            Mino {
-                x,
-                y,
-                color: mino.color,
-            }
-        }) {
-            mino.draw(painter);
-        }
+fn draw_minos(
+    painter: &mut ratatui::widgets::canvas::Painter,
+    minos: &Vec<Mino>,
+    matrix_width: usize,
+    matrix_height: usize,
+) {
+    for mino in minos.iter().map(|mino| RenderMino {
+        col: mino.col,
+        row: mino.row,
+        cols: matrix_width,
+        rows: matrix_height,
+        color: mino.color,
+    }) {
+        mino.draw(painter);
     }
 }
 
 impl Shape for TetriminoPreview {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        for mino in self.get_minos() {
-            mino.draw(painter);
-            //print!(" {},{}", mino.x, -mino.y);
-        }
-        //print!(";");
+        draw_minos(
+            painter,
+            &self.get_minos(),
+            PREVIEW_MATRIX_WIDTH.into(),
+            MATRIX_HEIGHT.into(),
+        );
+    }
+}
+
+impl Shape for Tetrimino {
+    fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
+        draw_minos(
+            painter,
+            &self
+                .get_minos()
+                .iter()
+                .map(|mino| Mino {
+                    col: mino.col,
+                    row: MATRIX_HEIGHT as i32 - mino.row - 1,
+                    color: mino.color,
+                })
+                .collect(),
+            MATRIX_WIDTH.into(),
+            MATRIX_HEIGHT.into(),
+        );
+    }
+}
+
+impl Shape for Game {
+    fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
+        let (rows, cols) = self.matrix.size();
+
+        draw_minos(
+            painter,
+            &self
+                .matrix
+                .get_minos()
+                .iter()
+                .map(|mino| Mino {
+                    col: mino.col,
+                    row: rows as i32 - mino.row - 1,
+                    color: mino.color,
+                })
+                .collect(),
+            cols,
+            rows,
+        );
+
+        self.tetrimino.draw(painter);
+    }
+}
+
+impl Shape for NextQueue {
+    fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
+        if let Some(tetraminos) = self.get_queue().chunks(6).next() {
+            for (index, tetramino) in tetraminos.iter().enumerate() {
+                tetramino.preview(index).draw(painter);
+            }
+        };
     }
 }

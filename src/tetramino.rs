@@ -1,12 +1,10 @@
 use crate::{
-    board::{get_spawn_point, MATRIX_WIDTH},
-    game::{MinoGrid, MinoGridMap},
     game_io::RotationDirection,
-    graphics::Mino,
+    matrix::{get_spawn_point, GridRotation, Matrix, MinoGrid},
     position_outside_bounds,
 };
-use grid::{grid, Grid};
-use rand::{distributions::Standard, prelude::Distribution, random};
+use grid::grid;
+use rand::{distributions::Standard, prelude::Distribution};
 use ratatui::style::Color;
 
 const I_COLOR: Color = Color::Indexed(51);
@@ -107,19 +105,19 @@ impl Distribution<TetriminoType> for Standard {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TetriminoPreview {
     /// the grid of minos making up the Tetrimino
-    minos: MinoGrid,
+    minos: Matrix,
     /// the index of the preview
     index: usize,
 }
 
-impl MinoGridMap for TetriminoPreview {
+impl MinoGrid for TetriminoPreview {
     fn get_minos(&self) -> Vec<Mino> {
         self.minos
             .get_minos()
             .iter()
             .map(|mino| Mino {
-                x: mino.x,
-                y: mino.y - 3 * self.index as i32,
+                col: mino.col,
+                row: mino.row + 3 * self.index as i32,
                 color: mino.color,
             })
             .collect()
@@ -127,46 +125,46 @@ impl MinoGridMap for TetriminoPreview {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mino {
+    pub col: i32,
+    pub row: i32,
+    pub color: Color,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tetrimino {
     // the type of the Tetrimino
     tetrimino_type: TetriminoType,
     /// the grid of minos making up the Tetrimino
-    minos: MinoGrid,
-    /// the current rotation
-    rotation: Facing,
-    /// the relative x position
-    x_pos: i32,
-    /// the relative y position
-    y_pos: i32,
+    minos: Matrix,
+    /// the column of the top-left corner of the bound-box
+    col: i32,
+    /// the row of the top-left corner of the bound-box
+    row: i32,
 }
 
-impl MinoGridMap for Tetrimino {
+impl MinoGrid for Tetrimino {
     fn get_minos(&self) -> Vec<Mino> {
         self.minos
             .get_minos()
             .iter()
             .map(|mino| Mino {
-                x: self.x_pos + mino.x,
-                y: self.y_pos + mino.y,
+                col: self.col + mino.col,
+                row: self.row - mino.row,
                 color: mino.color,
             })
             .collect()
     }
 }
 
-impl Default for Tetrimino {
-    fn default() -> Self {
-        Tetrimino::new(random())
-    }
-}
-
 impl Tetrimino {
     /// Create a new Tetrimino
     pub fn new(tetrimino_type: TetriminoType) -> Tetrimino {
-        let (x_pos, y_pos) = get_spawn_point(tetrimino_type);
+        let (col, row) = get_spawn_point(tetrimino_type);
+
         Tetrimino {
             tetrimino_type,
-            minos: match tetrimino_type {
+            minos: Matrix::from(match tetrimino_type {
                 TetriminoType::O => grid![
                     [None, Some(O_COLOR), Some(O_COLOR)]
                     [None, Some(O_COLOR), Some(O_COLOR)]
@@ -204,10 +202,9 @@ impl Tetrimino {
                     [None, Some(Z_COLOR), Some(Z_COLOR)]
                     [None, None, None]
                 ],
-            },
-            rotation: Facing::North,
-            x_pos,
-            y_pos,
+            }),
+            col,
+            row,
         }
     }
 
@@ -246,22 +243,22 @@ impl Tetrimino {
     /// ```
     pub fn position_invalid(
         &self,
-        x_offset: i32,
-        y_offset: i32,
-        matrix: &MinoGrid,
+        col_offset: i32,
+        row_offset: i32,
+        matrix: &Matrix,
     ) -> Option<Vec<Mino>> {
         let invalid: Vec<Mino> = self
             .get_minos()
             .iter()
             .filter_map(|mino| {
-                let x = mino.x + x_offset;
-                let y = mino.y + y_offset;
+                let col = mino.col + col_offset;
+                let row = mino.row + row_offset;
 
-                let out_of_bounds = position_outside_bounds!(x, y);
+                let out_of_bounds = position_outside_bounds!(col, row);
                 let board_collision = matrix
                     .get_minos()
                     .iter()
-                    .any(|block| x == block.x && y == block.y);
+                    .any(|block| col == block.col && row == block.row);
 
                 if out_of_bounds || board_collision {
                     // invalid minos are returned
@@ -284,15 +281,15 @@ impl Tetrimino {
     ///
     /// Returns `true` if the move was successful,
     /// `false` if the position would be invalid after the move
-    pub fn move_position(&mut self, x: i32, y: i32, matrix: &MinoGrid) -> bool {
+    pub fn move_position(&mut self, col: i32, row: i32, matrix: &Matrix) -> bool {
         // check if position would be invalid
-        if self.position_invalid(x, y, matrix).is_some() {
+        if self.position_invalid(col, row, matrix).is_some() {
             return false;
         }
 
         // move the piece if valid
-        self.x_pos += x;
-        self.y_pos += y;
+        self.col += col;
+        self.row += row;
 
         true
     }
@@ -300,36 +297,17 @@ impl Tetrimino {
     /// Rotate the Tetrimino
     ///
     /// Does nothing if the position would be invalid after the rotation
-    pub fn rotate(&mut self, rotation_direction: RotationDirection, matrix: &MinoGrid) {
+    pub fn rotate(&mut self, rotation_direction: RotationDirection, matrix: &Matrix) {
         // store the previous state in case rotation is impossible
         let original_minos = self.minos.to_owned();
-        let original_rotation = self.rotation;
 
         // make the rotated grid
-        let (rows, cols) = self.minos.size();
-        self.minos = Grid::new(cols, rows);
-        self.rotation = self.rotation.rotated(rotation_direction);
-
-        // map the original minos to the new rotated grid
-        original_minos
-            .iter_rows()
-            .enumerate()
-            .for_each(|(row, col_iter)| {
-                col_iter.enumerate().for_each(|(col, mino)| {
-                    self.minos[match rotation_direction {
-                        RotationDirection::Clockwise => col,
-                        RotationDirection::Counterclockwise => cols - col - 1,
-                    }][match rotation_direction {
-                        RotationDirection::Clockwise => rows - row - 1,
-                        RotationDirection::Counterclockwise => row,
-                    }] = *mino
-                })
-            });
+        self.minos = self.minos.rotated(rotation_direction);
 
         // Super-Rotation-System uses an offset table to try and place Tetrimino
         for (x, y) in self
             .tetrimino_type
-            .get_offset_data(original_rotation, self.rotation)
+            .get_offset_data(original_minos.rotation, self.minos.rotation)
         {
             if self.move_position(x, y, matrix) {
                 // position is okay
@@ -339,6 +317,5 @@ impl Tetrimino {
 
         // rotation is impossible, revert the state
         self.minos = original_minos;
-        self.rotation = original_rotation;
     }
 }

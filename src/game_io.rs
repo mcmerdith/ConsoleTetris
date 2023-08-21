@@ -26,8 +26,6 @@ pub enum Message {
     QuitGame,
     /// Move the Tetrimino
     Move(Movement),
-    /// Debug
-    Debug,
     /// New Tetrimino
     NewTetrimino,
 }
@@ -44,7 +42,6 @@ pub fn start_io_handler() -> (Receiver<Message>, JoinHandle<()>) {
                             let _ = io_tx.send(Message::QuitGame);
                             break;
                         }
-                        'r' => Message::Debug,
                         'n' => Message::NewTetrimino,
                         'z' => Message::Move(Movement::Rotate(RotationDirection::Counterclockwise)),
                         _ => continue,
