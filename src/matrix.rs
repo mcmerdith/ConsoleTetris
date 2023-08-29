@@ -142,19 +142,8 @@ pub fn get_matrix_size(vw_width: u16, vw_height: u16) -> Option<(u16, u16, u16, 
 /// Get the spawn point of a tetramino
 ///
 /// Returns `(x, y)`
-pub fn get_spawn_point(piece: TetriminoType) -> (i32, i32) {
-    (
-        match piece {
-            TetriminoType::I => 3,
-            TetriminoType::J => 3,
-            TetriminoType::L => 3,
-            TetriminoType::O => 4,
-            TetriminoType::S => 3,
-            TetriminoType::T => 3,
-            TetriminoType::Z => 3,
-        },
-        (MATRIX_HEIGHT - 1).into(),
-    )
+pub fn get_spawn_point() -> (i32, i32) {
+    (2, (MATRIX_HEIGHT - 1).into())
 }
 
 pub trait MinoGrid {

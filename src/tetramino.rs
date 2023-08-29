@@ -160,15 +160,17 @@ impl MinoGrid for Tetrimino {
 impl Tetrimino {
     /// Create a new Tetrimino
     pub fn new(tetrimino_type: TetriminoType) -> Tetrimino {
-        let (col, row) = get_spawn_point(tetrimino_type);
+        let (col, row) = get_spawn_point();
 
         Tetrimino {
             tetrimino_type,
             minos: Matrix::from(match tetrimino_type {
                 TetriminoType::O => grid![
-                    [None, Some(O_COLOR), Some(O_COLOR)]
-                    [None, Some(O_COLOR), Some(O_COLOR)]
-                    [None, None, None]
+                    [None, None, None, None, None]
+                    [None, None, Some(O_COLOR), Some(O_COLOR), None]
+                    [None, None, Some(O_COLOR), Some(O_COLOR), None]
+                    [None, None, None, None, None]
+                    [None, None, None, None, None]
                 ],
                 TetriminoType::I => grid![
                     [None, None, None, None, None]
@@ -178,29 +180,38 @@ impl Tetrimino {
                     [None, None, None, None, None]
                 ],
                 TetriminoType::T => grid![
-                    [None, Some(T_COLOR), None]
-                    [Some(T_COLOR), Some(T_COLOR), Some(T_COLOR)]
-                    [None, None, None]
+                    [None, None, None, None, None]
+                    [None, None, Some(T_COLOR), None, None]
+                    [None, Some(T_COLOR), Some(T_COLOR), Some(T_COLOR), None]
+                    [None, None, None, None, None]
                 ],
                 TetriminoType::L => grid![
-                    [None, None, Some(L_COLOR)]
-                    [Some(L_COLOR), Some(L_COLOR), Some(L_COLOR)]
-                    [None, None, None]
+                    [None, None, None, None, None]
+                    [None, None, None, Some(L_COLOR), None]
+                    [None, Some(L_COLOR), Some(L_COLOR), Some(L_COLOR), None]
+                    [None, None, None, None, None]
+                    [None, None, None, None, None]
                 ],
                 TetriminoType::J => grid![
-                    [Some(J_COLOR), None, None]
-                    [Some(J_COLOR), Some(J_COLOR), Some(J_COLOR)]
-                    [None, None, None]
+                    [None, None, None, None, None]
+                    [None, Some(J_COLOR), None, None, None]
+                    [None, Some(J_COLOR), Some(J_COLOR), Some(J_COLOR), None]
+                    [None, None, None, None, None]
+                    [None, None, None, None, None]
                 ],
                 TetriminoType::S => grid![
-                    [None, Some(S_COLOR), Some(S_COLOR)]
-                    [Some(S_COLOR), Some(S_COLOR), None]
-                    [None, None, None]
+                    [None, None, None, None, None]
+                    [None, None, Some(S_COLOR), Some(S_COLOR), None]
+                    [None, Some(S_COLOR), Some(S_COLOR), None, None]
+                    [None, None, None, None, None]
+                    [None, None, None, None, None]
                 ],
                 TetriminoType::Z => grid![
-                    [Some(Z_COLOR), Some(Z_COLOR), None]
-                    [None, Some(Z_COLOR), Some(Z_COLOR)]
-                    [None, None, None]
+                    [None, None, None, None, None]
+                    [None, Some(Z_COLOR), Some(Z_COLOR), None, None]
+                    [None, None, Some(Z_COLOR), Some(Z_COLOR), None]
+                    [None, None, None, None, None]
+                    [None, None, None, None, None]
                 ],
             }),
             col,
