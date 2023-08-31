@@ -1,7 +1,6 @@
 use std::{
     sync::mpsc::{self, Receiver},
     thread::{self},
-    time::Duration,
 };
 
 use crossterm::event::{self, KeyCode};
@@ -56,13 +55,4 @@ pub fn start_io_handler() -> Receiver<Message> {
         });
     });
     io_rx
-}
-
-pub fn start_watchdog() -> Receiver<()> {
-    let (watchdog_tx, watchdog_rx) = mpsc::channel();
-    thread::spawn(move || loop {
-        thread::sleep(Duration::from_secs(1));
-        let _ = watchdog_tx.send(());
-    });
-    watchdog_rx
 }

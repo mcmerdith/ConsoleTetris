@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, time::Instant};
 
 use crate::{
     game_handler::Movement,
@@ -78,14 +78,19 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn next_tetrimino(&mut self, tetrimino: Tetrimino) {
+    pub fn new_tetrimino(&mut self, tetrimino: Tetrimino) -> bool {
         // lock the current Tetrimino
         for mino in self.tetrimino.get_minos() {
             self.matrix.set_mino(mino.to_owned());
         }
 
         // new Tetrimino
-        self.tetrimino = tetrimino;
+        return if tetrimino.position_invalid(0, 0, &self.matrix).is_some() {
+            false
+        } else {
+            self.tetrimino = tetrimino;
+            true
+        };
     }
 
     pub fn apply_movement(&mut self, movement: Movement) -> bool {
@@ -101,9 +106,11 @@ impl Game {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameState {
-    pub running: bool,
+    pub game_over: bool,
     pub next_queue: NextQueue,
     pub game: Game,
+    pub level: i32,
+    pub last_tick: Instant,
 }
 
 impl Default for GameState {
@@ -112,13 +119,34 @@ impl Default for GameState {
         let tetrimino = next_queue.next();
 
         Self {
-            running: true,
+            game_over: false,
             next_queue,
             game: Game {
                 tetrimino,
                 matrix: Matrix::new(MATRIX_HEIGHT.into(), MATRIX_WIDTH.into(), Facing::North),
             },
+            level: 1,
+            last_tick: Instant::now(),
         }
+    }
+}
+
+impl GameState {
+    /// The current time to move down one line in seconds
+    fn current_drop_time(&self) -> f64 {
+        (0.8 - ((self.level - 1) as f64 * 0.007)).powi(self.level - 1)
+    }
+
+    /// Runs the gravity check
+    pub fn tick(&mut self) -> bool {
+        let now = Instant::now();
+        if now.duration_since(self.last_tick).as_secs_f64() > self.current_drop_time() {
+            self.last_tick = now;
+            if !self.game.apply_movement(Movement::Down) {
+                return self.game.new_tetrimino(self.next_queue.next());
+            }
+        }
+        true
     }
 }
 
