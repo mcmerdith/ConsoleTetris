@@ -2,8 +2,8 @@ use grid::Grid;
 use ratatui::style::Color;
 
 use crate::{
-    game_io::RotationDirection,
-    tetramino::{Facing, Mino, TetriminoType},
+    game_handler::RotationDirection,
+    tetramino::{Facing, Mino},
 };
 
 pub const MATRIX_WIDTH: u16 = 10;

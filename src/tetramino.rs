@@ -1,5 +1,5 @@
 use crate::{
-    game_io::RotationDirection,
+    game_handler::RotationDirection,
     matrix::{get_spawn_point, GridRotation, Matrix, MinoGrid},
     position_outside_bounds,
 };
@@ -308,7 +308,7 @@ impl Tetrimino {
     /// Rotate the Tetrimino
     ///
     /// Does nothing if the position would be invalid after the rotation
-    pub fn rotate(&mut self, rotation_direction: RotationDirection, matrix: &Matrix) {
+    pub fn rotate(&mut self, rotation_direction: RotationDirection, matrix: &Matrix) -> bool {
         // store the previous state in case rotation is impossible
         let original_minos = self.minos.to_owned();
 
@@ -322,11 +322,12 @@ impl Tetrimino {
         {
             if self.move_position(x, y, matrix) {
                 // position is okay
-                return;
+                return true;
             }
         }
 
         // rotation is impossible, revert the state
         self.minos = original_minos;
+        false
     }
 }

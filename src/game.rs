@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::{
-    game_io::Movement,
+    game_handler::Movement,
     matrix::{
         get_matrix_size, Matrix, MinoGrid, MATRIX_HEIGHT, MATRIX_WIDTH, PREVIEW_MATRIX_WIDTH,
     },
@@ -88,21 +88,13 @@ impl Game {
         self.tetrimino = tetrimino;
     }
 
-    pub fn apply_movement(&mut self, movement: Movement) {
+    pub fn apply_movement(&mut self, movement: Movement) -> bool {
         match movement {
-            Movement::Rotate(rotation) => {
-                self.tetrimino.rotate(rotation, &self.matrix);
-            }
-            Movement::Left => {
-                self.tetrimino.move_position(-1, 0, &self.matrix);
-            }
-            Movement::Right => {
-                self.tetrimino.move_position(1, 0, &self.matrix);
-            }
-            Movement::Down => {
-                self.tetrimino.move_position(0, -1, &self.matrix);
-            }
-            Movement::Drop => return,
+            Movement::Rotate(rotation) => self.tetrimino.rotate(rotation, &self.matrix),
+            Movement::Left => self.tetrimino.move_position(-1, 0, &self.matrix),
+            Movement::Right => self.tetrimino.move_position(1, 0, &self.matrix),
+            Movement::Down => self.tetrimino.move_position(0, -1, &self.matrix),
+            Movement::Drop => true,
         }
     }
 }
@@ -140,7 +132,8 @@ impl StatefulWidget for Tetris {
         buf: &mut ratatui::prelude::Buffer,
         state: &mut Self::State,
     ) {
-        let Some((board_width, board_height, preview_width, margin)) = get_matrix_size(area.width, area.height)
+        let Some((board_width, board_height, preview_width, margin)) =
+            get_matrix_size(area.width, area.height)
         else {
             Paragraph::new("This terminal is too small to play Tetris!").render(area, buf);
             return;

@@ -1,5 +1,5 @@
 mod game;
-mod game_io;
+mod game_handler;
 mod graphics;
 mod matrix;
 mod tetramino;
@@ -10,7 +10,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use game::{GameState, Tetris};
-use game_io::{start_io_handler, Message};
+use game_handler::{start_io_handler, start_watchdog, Message, Movement};
 use ratatui::{
     prelude::{Backend, CrosstermBackend},
     Terminal,
@@ -53,25 +53,34 @@ fn main() -> Result<(), io::Error> {
 fn game_loop(terminal: &mut Terminal<impl Backend>) -> Result<(), io::Error> {
     let mut gamestate = GameState::default();
 
-    let (io_rx, io_thread) = start_io_handler();
+    let io_rx = start_io_handler();
+    let watchdog_rx = start_watchdog();
 
     while gamestate.running {
         match io_rx.try_recv() {
             Ok(v) => match v {
                 Message::QuitGame => gamestate.running = false,
-                Message::Move(control) => gamestate.game.apply_movement(control),
+                Message::Move(control) => {
+                    gamestate.game.apply_movement(control);
+                }
                 Message::NewTetrimino => gamestate.game.next_tetrimino(gamestate.next_queue.next()),
             },
             Err(_) => (),
         };
 
+        match watchdog_rx.try_recv() {
+            Ok(()) => {
+                if !gamestate.game.apply_movement(Movement::Down) {
+                    gamestate.game.next_tetrimino(gamestate.next_queue.next());
+                }
+            }
+            Err(_) => (),
+        }
+
         terminal.draw(|f| {
             f.render_stateful_widget(Tetris {}, f.size(), &mut gamestate);
         })?;
     }
-
-    // wait for the IO thread to terminate
-    let _ = io_thread.join();
 
     Ok(())
 }
